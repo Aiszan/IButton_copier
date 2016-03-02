@@ -16,11 +16,11 @@
 #define LCD_CACHE_SIZE ((LCD_X_RES * LCD_Y_RES) / 8)
 
 /* Pinout for LCD */
-#define LCD_CLK_PIN 	(1<<PD2)
-#define LCD_DATA_PIN 	(1<<PD3)
+#define LCD_CLK_PIN 	(1<<PD7)
+#define LCD_DATA_PIN 	(1<<PD5)
 #define LCD_DC_PIN 		(1<<PD4)
-#define LCD_CE_PIN 		(1<<PD5)
-#define LCD_RST_PIN 	(1<<PD7)
+#define LCD_CE_PIN 		(1<<PD3)
+#define LCD_RST_PIN 	(1<<PD2)
 #define LCD_PORT		PORTD
 #define LCD_DDR			DDRD
 
