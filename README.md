@@ -1,2 +1,4 @@
 # key_copy
-doorphone keys copyer
+Копировщик домофонных ключей.
+Поддерживается чтение ключей Dallas, Cyfral, Metakom, EM-Marin, KT-01 и резистивных
+Запись заготовок TM08v2, TM2004, T5557, KT-01
