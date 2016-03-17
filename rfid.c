@@ -3,32 +3,46 @@
 #include <util/delay.h>
 #include "rfid.h"
 
-#define RFID_ON() RFID_PORT |= 1<<RFID_OUT
-#define RFID_OFF() RFID_PORT &= ~(1<<RFID_OUT)
-
 uint8_t rfid_buffer [RFID_BUFFER_SIZE];  //Буфер RFID
 uint8_t rfid_code [64];
 
 void rfid_init()
 {
-	RFID_DDR &= ~(1<<RFID_IN);
+	TCCR0A = (1<<COM0A0)|(1<<WGM01);
+	TCCR0B = (0<<CS02)|(0<<CS01)|(1<<CS00);
+	OCR0A = 63;
+	DDRD |= 1<<PD6;
+
 	RFID_DDR |= 1<<RFID_OUT;
+	RFID_DDR &= ~(1<<RFID_IN);
 	RFID_PORT |= (1<<RFID_IN)|(1<<RFID_OUT);
+}
+
+void inline rfid_on()
+{
+	DDRD |= 1<<PD6;
+	RFID_PORT |= 1<<RFID_OUT;
+}
+
+void inline rfid_off()
+{
+	DDRD &= ~(1<<PD6);
+	RFID_PORT &= ~(1<<RFID_OUT);
 }
 
 void rfid_write(uint8_t bit){
 	if(bit)_delay_us(250);
 	_delay_us(180);
-	RFID_OFF();
+	rfid_off();
 	_delay_us(160);
-	RFID_ON();
+	rfid_on();
 }
 
 void rfid_write_block(uint8_t* data, uint8_t address)
 {
-	RFID_OFF();		//start gap
+	rfid_off();		//start gap
 	_delay_us(240);//
-	RFID_ON();
+	rfid_on();
 	rfid_write(1); //
 	rfid_write(0); // opcode + lock bit
 	rfid_write(0); //
@@ -132,7 +146,7 @@ uint8_t rfid_read(uint8_t* data)
 			rfid_buffer[i / 8] |= temp << (i % 8);
 		}
 	}
-	if(rfid_decode() != RFID_OK) return RFID_PARITY_ERR; //занимает до 3 мс
+	if(rfid_decode() != RFID_OK) return RFID_PARITY_ERR; //занимает до 3мс
 	if(rfid_check() != RFID_OK) return RFID_PARITY_ERR; //занимает 50мкс
 
 	for(uint8_t byte=0;byte<5;byte++){
@@ -145,6 +159,16 @@ uint8_t rfid_read(uint8_t* data)
 	return RFID_OK;
 }
 
+uint8_t rfid_force_read(uint8_t* data)
+{
+	uint8_t temp = 0;
+	for(uint8_t i=0; i<5;i++){
+		temp = rfid_read(data);
+		if(temp == RFID_OK) break;
+	}
+	return temp;
+}
+
 uint8_t rfid_program(uint8_t* data)
 {
 	rfid_config();
@@ -152,14 +176,15 @@ uint8_t rfid_program(uint8_t* data)
 	rfid_encode(data);
 	rfid_write_block(rfid_code, 0x01);
 	rfid_write_block(rfid_code+32, 0x02);
-	RFID_OFF();
+	
+	rfid_off();
 	_delay_ms(20);
-	RFID_ON();
+	rfid_on();
+	_delay_ms(100);
+	
 	uint8_t temp = 0;
-	for(uint8_t i=0;i<5;i++){
-		temp = rfid_read(data+8);
-		if(temp == RFID_OK) break;
-	}
+	for(uint8_t i=0;i<5;i++) data[i+8] = ~data[i];
+	temp = rfid_force_read(data+8);
 	if(temp != RFID_OK) return temp;
 	for(uint8_t i=0;i<5;i++)if(data[i] != data[i+8]) return RFID_PARITY_ERR;
 	return RFID_OK;

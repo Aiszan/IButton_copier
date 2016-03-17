@@ -1,7 +1,7 @@
 /*
  * rfid.h
  *
- * Created: 23.01.?2016 ??18:59:30
+ * Created: 23.01.2016 18:59:30
  *  Author: Elektron
  */
 #pragma once
@@ -21,4 +21,5 @@
 
 void rfid_init(void);
 uint8_t rfid_read(uint8_t* data);
+uint8_t rfid_force_read(uint8_t* data);
 uint8_t rfid_program(uint8_t* data);

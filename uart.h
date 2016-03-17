@@ -70,7 +70,8 @@ void uart_putw_dec(uint16_t w);
 void uart_putdw_dec(uint32_t dw);
 
 void uart_puts(const char* str);
-void uart_puts_p(PGM_P str);
+void uart_puts_P(PGM_P str);
+#define uart_puts_p(__s)		uart_puts_P(PSTR(__s))
 
 uint8_t uart_getc();
 

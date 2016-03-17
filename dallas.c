@@ -213,3 +213,22 @@ uint8_t ds_program_tm2004(uint8_t* data)
 	}
 	return DS_READ_ROM_OK;
 }
+
+uint8_t ds_program_tm01c(uint8_t* data)
+{
+	if(ds_reset()){return DS_READ_ROM_NO_PRES;}
+	ds_write_byte(0xC1);
+	//_delay_ms(delay_S);
+	//ds_write_bit(0);
+	//_delay_ms(delay_S);
+	if(ds_reset()) return DS_READ_ROM_NO_PRES;
+	ds_write_byte(0xD5);
+	_delay_ms(delay_S);
+	for(unsigned char i=0;i<8;i++)
+	ds_program_byte(data[i]);
+	if(ds_reset()) return DS_READ_ROM_NO_PRES;
+	ds_write_byte(0x33);
+	for(uint8_t i=0;i<8;i++)
+	if(data[i] != ds_read_byte()) return DS_READ_ROM_CRC_ERR;
+	return DS_READ_ROM_OK;
+}

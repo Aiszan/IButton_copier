@@ -23,6 +23,8 @@
 
 void uart_init()
 {
+	DDRD |= 1<<PD1;
+	DDRD &= ~(1<<PD0);
 	UBRRH = UBRRH_VALUE;
 	UBRRL = UBRRL_VALUE;
     /* set frame format: 8 bit, no parity, 1 bit */
@@ -53,13 +55,13 @@ void uart_putc_hex(uint8_t b)
     if((b >> 4) < 0x0a)
         uart_putc((b >> 4) + '0');
     else
-        uart_putc((b >> 4) - 0x0a + 'a');
+        uart_putc((b >> 4) - 0x0a + 'A');
 
     /* lower nibble */
     if((b & 0x0f) < 0x0a)
         uart_putc((b & 0x0f) + '0');
     else
-        uart_putc((b & 0x0f) - 0x0a + 'a');
+        uart_putc((b & 0x0f) - 0x0a + 'A');
 }
 
 void uart_putw_hex(uint16_t w)
@@ -118,16 +120,10 @@ void uart_puts(const char* str)
         uart_putc(*str++);
 }
 
-void uart_puts_p(PGM_P str)
+void uart_puts_P(const char *str)
 {
-    while(1)
-    {
-        uint8_t b = pgm_read_byte_near(str++);
-        if(!b)
-            break;
-
-        uart_putc(b);
-    }
+	uint8_t b = 0;
+    while( (b = pgm_read_byte(str++)) ) uart_putc(b);
 }
 
 uint8_t uart_getc()
