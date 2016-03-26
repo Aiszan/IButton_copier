@@ -58,8 +58,8 @@ void lcd_goto_xy(unsigned char x, unsigned char y);
 void lcd_goto_xy_exact(unsigned char x, unsigned char y);
 void lcd_chr(char chr);
 void lcd_str(char* str);
-void lcd_str_P(const char* progmem_s);
-#define lcd_str_p(__s)         lcd_str_P(PSTR(__s))
+void lcd_str_p(const char* progmem_s);
+#define lcd_pstr(__s)         lcd_str_p(PSTR(__s))
 void lcd_hex(char hex);
 void lcd_sep(void);
 

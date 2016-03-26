@@ -180,7 +180,7 @@ uint8_t rfid_program(uint8_t* data)
 	rfid_off();
 	_delay_ms(20);
 	rfid_on();
-	_delay_ms(100);
+	_delay_ms(20);
 	
 	uint8_t temp = 0;
 	for(uint8_t i=0;i<5;i++) data[i+8] = ~data[i];

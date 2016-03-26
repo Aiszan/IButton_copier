@@ -58,6 +58,9 @@ extern "C"
 #endif
 #endif
 
+#define UART_BUFFER_SIZE 64
+enum uart_result{UART_OK, UART_FAIL};
+
 void uart_init();
 
 void uart_putc(uint8_t c);
@@ -70,10 +73,11 @@ void uart_putw_dec(uint16_t w);
 void uart_putdw_dec(uint32_t dw);
 
 void uart_puts(const char* str);
-void uart_puts_P(PGM_P str);
-#define uart_puts_p(__s)		uart_puts_P(PSTR(__s))
+void uart_puts_p(PGM_P str);
+#define uart_puts_pstr(__s)		uart_puts_p(PSTR(__s))
 
-uint8_t uart_getc();
+uint8_t uart_getc(uint8_t* b);
+uint8_t uart_gets(char* str);
 
 #ifdef __cplusplus
 }

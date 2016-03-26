@@ -8,39 +8,8 @@
 #include <util/delay.h>
 #include "cyfral.h"
 
-#define MK_PORT PORTC
-#define MK_DDR  DDRC
-#define MK_LINE 0
-
-#define ADC0 0b00000000
-#define ADC1 0b00000001
-#define ADC2 0b00000010
-#define ADC3 0b00000011
-#define ADC4 0b00000100
-#define ADC5 0b00000101
-#define ADC6 0b00000110
-#define ADC7 0b00000111
-#define ADC8 0b00001000
-
 #define AVG_U_SUM 100
 #define AVG_T_SUM 100
-
- uint8_t cl_code[2];
- uint8_t cl_buffer[14];
-
-void cl_init()
-{
-    ADCSRA = (1 << ADEN) 								// разрешение АЦП
-    |(1 << ADSC) 										// запуск преобразования
-    |(1 << ADATE) 										// непрерывный режим работы АЦП
-    |(0 << ADPS2)|(1 << ADPS1)|(1 << ADPS0) 			// предделитель на 8 (частота АЦП 148kHz)
-    |(0 << ADIE); 										// запрет прерывания
-    ADCSRB = (0 << ADTS2)|(0 << ADTS1)|(0 << ADTS0); 	// непрерывный режим работы АЦП
-
-    ADMUX = (0 << REFS1)|(1 << REFS0) 					// опорное напряжение AVCC
-    |(1 << ADLAR)										// смещение результата (влево при 1, читаем 8 бит из ADCH)
-    |(ADC0); 											// вход ADC0
-}
 
 uint8_t cl_decode(uint8_t* data)
 {
@@ -87,6 +56,11 @@ uint8_t cl_read(uint8_t* data)
 {
 	uint16_t sum = 0;
 	uint8_t avg_t = 0, avg_u = 0;
+	
+	ADMUX = (0 << REFS1)|(1 << REFS0) 					// опорное напряжение AVCC
+	|(1 << ADLAR)										// смещение результата (влево при 1, читаем 8 бит из ADCH)
+	|(CL_ADC);	 										// вход CL_ADC
+	_delay_us(20);
 	
 	for(uint8_t i=0;i<14;i++)cl_buffer[i] = 0;				//чистим массив приема
 

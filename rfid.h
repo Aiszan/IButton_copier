@@ -12,10 +12,7 @@
 #define RFID_IN   2
 #define RFID_OUT  3
 
-#define RFID_OK			0
-#define RFID_NO_KEY		1
-#define RFID_PARITY_ERR 2
-
+enum enum_rfid{RFID_OK, RFID_NO_KEY, RFID_PARITY_ERR};
 
 #define RFID_BUFFER_SIZE 40				//40*8=500 samples
 
