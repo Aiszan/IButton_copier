@@ -11,13 +11,16 @@
 #define AVG_U_SUM 100
 #define AVG_T_SUM 100
 
+uint8_t cl_code[2];
+uint8_t cl_buffer[14];
+
 uint8_t cl_decode(uint8_t* data)
 {
 	uint8_t start = 0;
-	data[0] = 0;
-	data[1] = 0;
+	for(uint8_t i=0;i<8;i++) data[i] = 0;
 	cl_code[0] = 0;
 	cl_code[1] = 0;	
+	
 	for(uint8_t temp=0;start<112;start++){							//находим стартовое слово
 		temp = temp<<1;
 		if((cl_buffer[start/8]>>(start%8)) & 0x01) temp |= 0x01;
@@ -30,12 +33,13 @@ uint8_t cl_decode(uint8_t* data)
 		if((cl_buffer[(start+i)/8]>>((start+i)%8)) & 0x01) temp |= 0x01;
 		if(((cl_buffer[(start+i+36)/8]>>((start+i+36)%8)) & 0x01) != temp) return CL_NO_KEY;
 	}
-	for(uint8_t i=4;i<36;i+=4){										//декодируем данные
+	for(uint8_t i=0;i<32;i+=4){										//декодируем данные
 		uint8_t temp = 0;
 		for(uint8_t bit=0;bit<4;bit++){
 			temp = temp<<1;
-			if((cl_buffer[(start+i+bit)/8]>>((start+i+bit)%8)) & 0x01) temp |= 0x01;
+			if((cl_buffer[(start+i+bit+4)/8]>>((start+i+bit+4)%8)) & 0x01) temp |= 0x01;
 		}
+		
 		switch(temp){
 			case 0b00001110: temp = 0b00000000;break;
 			case 0b00001101: temp = 0b00000001;break;
@@ -43,7 +47,7 @@ uint8_t cl_decode(uint8_t* data)
 			case 0b00000111: temp = 0b00000011;break;
 			default: return CL_NO_KEY;
 		}
-		cl_code[(i-4)/16] |= temp << (((i-4)%16)/2);
+		cl_code[i/16] |= temp << ((i%16)/2);
 	}
 	data[0] |= cl_code[0]<<4;									//меняем порядок нибблов
 	data[0] |= cl_code[0]>>4;

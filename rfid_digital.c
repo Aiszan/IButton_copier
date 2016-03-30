@@ -3,9 +3,8 @@
 #include <util/delay.h>
 #include "rfid.h"
 
-uint8_t rfid_buffer [RFID_BUFFER_SIZE];  //Буфер RFID
+uint8_t rfid_buffer [RFID_BUFFER_SIZE];  //Ѕуфер RFID
 uint8_t rfid_code [64];
-uint8_t avg_u;
 
 void rfid_init()
 {
@@ -16,7 +15,7 @@ void rfid_init()
 
 	RFID_DDR |= 1<<RFID_OUT;
 	RFID_DDR &= ~(1<<RFID_IN);
-	RFID_PORT |= (1<<RFID_OUT);
+	RFID_PORT |= (1<<RFID_IN)|(1<<RFID_OUT);
 }
 
 void inline rfid_on()
@@ -78,14 +77,14 @@ void rfid_config()
 {
 	uint8_t temp[] = {0x00,0x14,0x80,0x40};
 	for(uint8_t i=0;i<32;i++)
-		if(temp[i/8] & (0x80>>(i%8)))rfid_code[i] = 1;
-		else rfid_code[i] = 0; 
+	if(temp[i/8] & (0x80>>(i%8)))rfid_code[i] = 1;
+	else rfid_code[i] = 0;
 }
 
 uint8_t rfid_in()
 {
-	if(ADCH > avg_u) return 1;
-	return 0;
+	if(RFID_PIN & 1<<RFID_IN) return 1;
+	else return 0;
 }
 
 uint8_t rfid_decode()
@@ -103,7 +102,7 @@ uint8_t rfid_decode()
 		if(prev == now) bit = now;
 		
 		rfid_code[offset] = bit;
-		offset++;		
+		offset++;
 		if(offset >= 64) return RFID_OK;
 		
 		if(start < 9){
@@ -132,27 +131,13 @@ uint8_t rfid_check()
 uint8_t rfid_read(uint8_t* data)
 {
 	uint8_t temp, time = 0;
-	
-	ADMUX = (0 << REFS1)|(1 << REFS0) 					// опорное напряжение AVCC
-	|(1 << ADLAR)										// смещение результата (влево при 1, читаем 8 бит из ADCH)
-	|(RFID_IN);											// вход RFID_IN
-	
-	
-	uint16_t sum = 0;
-	for(uint8_t i=0;i<100;i++){							//определяем среднее напряжение
-		sum += ADCH;
-		_delay_us(20);
-	}
-	avg_u = sum / 100;
-	
-	
 	for (uint8_t i=0;i<RFID_BUFFER_SIZE;i++) rfid_buffer[i] = 0;
 	
 	for (uint16_t i=0;i<RFID_BUFFER_SIZE*8;i++){
 		temp = rfid_in();
-		for(time=5;time<70;time++){
+		for(time=0;time<70;time++){
 			_delay_us(10);
-			if(temp != rfid_in()){_delay_us(50); break;}
+			if(temp != rfid_in())break;
 		}
 		if((time < 9) || (time > 64)) return RFID_NO_KEY;
 		rfid_buffer[i / 8] |= temp << (i % 8);
@@ -177,7 +162,7 @@ uint8_t rfid_read(uint8_t* data)
 uint8_t rfid_force_read(uint8_t* data)
 {
 	uint8_t temp = 0;
-	for(uint8_t i=0; i<16;i++){
+	for(uint8_t i=0; i<5;i++){
 		temp = rfid_read(data);
 		if(temp == RFID_OK) break;
 	}

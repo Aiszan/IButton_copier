@@ -3,18 +3,6 @@
 #include <stdint.h>
 #include "dallas.h"
 
-#define delay_A 1
-#define delay_B 64
-#define delay_C 60
-#define delay_D 10
-#define delay_E 9
-#define delay_F 55
-#define delay_G 2
-#define delay_H 900  //480
-#define delay_I 70
-#define delay_J 410
-#define delay_S 15
-
 void ds_init()
 {
 	DS_PORT &= ~(1<<DS_LINE);
@@ -66,14 +54,14 @@ void ds_write_bit(uint8_t value)
 	if (value)
 	{
 		ds_out(0);
-		_delay_us(delay_A);
+		_delay_us(1);
 		ds_out(1);
-		_delay_us(delay_B);
+		_delay_us(64);
 		}else{
 		ds_out(0);
-		_delay_us(delay_C);
+		_delay_us(60);
 		ds_out(1);
-		_delay_us(delay_D);
+		_delay_us(10);
 	}
 }
 
@@ -82,11 +70,11 @@ uint8_t ds_read_bit()
 	uint8_t result;
 
 	ds_out(0);
-	_delay_us(delay_A);
+	_delay_us(1);
 	ds_out(1);
-	_delay_us(delay_E);
+	_delay_us(9);
 	result = ds_in();
-	_delay_us(delay_F);
+	_delay_us(55);
 
 	return result;
 }
@@ -105,7 +93,7 @@ void ds_program_byte(uint8_t data)
 	for (uint8_t i=0;i<8;i++){
 		ds_write_bit(data & 0x01);
 		data >>= 1;
-		_delay_ms(delay_S);
+		_delay_ms(10);
 	}
 }
 
@@ -130,13 +118,13 @@ uint8_t ds_read_byte(void)
 uint8_t ds_reset(void)
 {
 	ds_out(0);
-	_delay_us(delay_H);
+	_delay_us(900);
 	ds_out(1);
-	_delay_us(delay_D);
+	_delay_us(10);
 	if(ds_in()==0){return 1;}
-	_delay_us(delay_I);
+	_delay_us(70);
 	if(ds_in()!=0){return 2;}
-	_delay_us(delay_J);
+	_delay_us(410);
 	return 0;
 }
 
@@ -144,9 +132,9 @@ uint8_t ds_timeslot()
 {
 	uint8_t time;
 	ds_out(0);
-	_delay_us(delay_H);
+	_delay_us(900);
 	ds_out(1);
-	_delay_us(delay_D);
+	_delay_us(10);
 	for(time=10;time<100;time++){
 		asm volatile ("nop");
 		asm volatile ("nop");
@@ -160,7 +148,7 @@ uint8_t ds_timeslot()
 		asm volatile ("nop");
 		if(ds_in() == 0) break;
 	}
-	_delay_us(delay_J);
+	_delay_us(410);
 	if(ds_in() == 0) return 0;
 	else if(time < 99) return time;
 	return 0;
@@ -183,22 +171,41 @@ uint8_t ds_read_rom(uint8_t* data)
 	return DS_READ_ROM_OK;
 }
 
-uint8_t ds_program_tm08v2(uint8_t* data)
+uint8_t ds_program_RW1990_2(uint8_t* data)
 {
-	if(ds_reset()){return DS_READ_ROM_NO_PRES;}
-	ds_write_byte(0xD1);
-	_delay_ms(delay_S);
-	ds_write_bit(0);
-	_delay_ms(delay_S);
+	if(ds_reset()) return DS_READ_ROM_NO_PRES;
+	ds_write_byte(0x1D);
+	ds_write_bit(1);
+	_delay_ms(10);
 	if(ds_reset()) return DS_READ_ROM_NO_PRES;
 	ds_write_byte(0xD5);
-	_delay_ms(delay_S);
-	for(unsigned char i=0;i<8;i++)
-	ds_program_byte(data[i]);
+	for(unsigned char i=0;i<8;i++) ds_program_byte(data[i]);
 	if(ds_reset()) return DS_READ_ROM_NO_PRES;
 	ds_write_byte(0x33);
-	for(uint8_t i=0;i<8;i++)
-	if(data[i] != ds_read_byte()) return DS_READ_ROM_CRC_ERR;
+	for(uint8_t i=0;i<8;i++) if(data[i] != ds_read_byte()) return DS_READ_ROM_CRC_ERR;
+	if(ds_reset()) return DS_READ_ROM_NO_PRES;
+	ds_write_byte(0x1D);
+	ds_write_bit(0);
+	_delay_ms(10);
+	return DS_READ_ROM_OK;
+}
+
+uint8_t ds_program_tm08v2(uint8_t* data)
+{
+	if(ds_reset()) return DS_READ_ROM_NO_PRES;
+	ds_write_byte(0xD1);
+	ds_write_bit(0);
+	_delay_ms(10);
+	if(ds_reset()) return DS_READ_ROM_NO_PRES;
+	ds_write_byte(0xD5);
+	for(unsigned char i=0;i<8;i++) ds_program_byte(data[i]);
+	if(ds_reset()) return DS_READ_ROM_NO_PRES;
+	ds_write_byte(0x33);
+	for(uint8_t i=0;i<8;i++) if(data[i] != ds_read_byte()) return DS_READ_ROM_CRC_ERR;
+	if(ds_reset()) return DS_READ_ROM_NO_PRES;
+	ds_write_byte(0xD1);
+	ds_write_bit(1);
+	_delay_ms(10);
 	return DS_READ_ROM_OK;
 }
 
@@ -220,21 +227,43 @@ uint8_t ds_program_tm2004(uint8_t* data)
 	return DS_READ_ROM_OK;
 }
 
-uint8_t ds_program_tm01c(uint8_t* data)
+uint8_t ds_program_tm01c(uint8_t* data, uint8_t type)
 {
-	if(ds_reset()){return DS_READ_ROM_NO_PRES;}
-	ds_write_byte(0xC1);
-	_delay_ms(delay_S);
-	ds_write_bit(0);
-	_delay_ms(delay_S);
 	if(ds_reset()) return DS_READ_ROM_NO_PRES;
-	ds_write_byte(0xD5);
-	_delay_ms(delay_S);
-	for(unsigned char i=0;i<8;i++)
-	ds_program_byte(data[i]);
+	ds_write_byte(0xC1);
+	ds_write_bit(0);
+	_delay_ms(10);
+	if(ds_reset()) return DS_READ_ROM_NO_PRES;
+	ds_write_byte(0xC5);
+	_delay_ms(10);
+	for(unsigned char i=0;i<8;i++) ds_program_byte(data[i]);
 	if(ds_reset()) return DS_READ_ROM_NO_PRES;
 	ds_write_byte(0x33);
-	for(uint8_t i=0;i<8;i++)
-	if(data[i] != ds_read_byte()) return DS_READ_ROM_CRC_ERR;
+	for(uint8_t i=0;i<8;i++) if(data[i] != ds_read_byte()) return DS_READ_ROM_CRC_ERR;
+	if(type == TM01C_DALLAS) return DS_READ_ROM_OK;
+	
+	if(ds_reset()) return DS_READ_ROM_NO_PRES;
+	if(type == TM01C_METAKOM) ds_write_byte(0xCB);
+	if(type == TM01C_CYFRAL) ds_write_byte(0xCA);
+	ds_write_bit(0);
+	_delay_ms(30);
+	return DS_READ_ROM_OK;
+}
+
+uint8_t ds_erase_tm01c(uint8_t type)
+{
+	if(ds_reset()) return DS_READ_ROM_NO_PRES;
+	if(type == TM01C_METAKOM) ds_write_byte(0xB4);
+	if(type == TM01C_METAKOM) ds_write_byte(0xB6);
+	ds_write_bit(1);
+	if(ds_reset()) return DS_READ_ROM_NO_PRES;
+	if(type == TM01C_METAKOM) ds_write_byte(0xCB);
+	if(type == TM01C_METAKOM) ds_write_byte(0xCA);
+	ds_write_bit(0);
+	_delay_ms(10);
+	if(ds_reset()) return DS_READ_ROM_NO_PRES;
+	if(type == TM01C_METAKOM) ds_write_byte(0xB4);
+	if(type == TM01C_METAKOM) ds_write_byte(0xB6);
+	ds_write_bit(0);
 	return DS_READ_ROM_OK;
 }

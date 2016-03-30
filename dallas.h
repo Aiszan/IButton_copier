@@ -7,6 +7,7 @@
 #pragma once
 
 enum enum_ds{DS_READ_ROM_OK, DS_READ_ROM_NO_PRES, DS_READ_ROM_CRC_ERR};
+enum enum_TM01{TM01C_DALLAS, TM01C_METAKOM, TM01C_CYFRAL};
 
 #define DS_PORT PORTC
 #define DS_DDR DDRC
@@ -48,6 +49,12 @@ uint8_t ds_read_rom();
 
 void ds_program_byte(uint8_t data);
 
-uint8_t ds_program_tm08v2(uint8_t* p);
+uint8_t ds_program_RW1990_2(uint8_t* data);
 
-uint8_t ds_program_tm2004(uint8_t* p);
+uint8_t ds_program_tm08v2(uint8_t* data);
+
+uint8_t ds_program_tm2004(uint8_t* data);
+
+uint8_t ds_program_tm01c(uint8_t* data, uint8_t type);
+
+uint8_t ds_erase_tm01c(uint8_t type);

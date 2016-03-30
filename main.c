@@ -18,57 +18,57 @@
 #define BUTTON_LINE 0
 
 enum enum_key{KEY_NO_KEY, KEY_DALLAS, KEY_RFID, KEY_KT01, KEY_METAKOM, KEY_MK_DAL_1, KEY_MK_DAL_2, KEY_CYFRAL, KEY_CY_DAL_1, KEY_CY_DAL_2, KEY_RESIST};
-enum enum_tag{TAG_TM08, TAG_TM2004, TAG_T5557, TAG_KT01, TAG_AUTO, TAG_DEFAULT};
+enum enum_tag{TAG_RW1990, TAG_TM08, TAG_TM2004, TAG_T5557, TAG_KT01, TAG_AUTO, TAG_DEFAULT};
 enum enum_mode{MODE_DEFAULT, MODE_READ, MODE_WRITE};
 enum enum_button{BUTTON_OFF, BUTTON_ON, BUTTON_HOLD};
 enum enum_res{RES_READ_OK, RES_NO_PRES};
 enum enum_user{USER_DEFAULT, USER_CMD};
 
-const uint8_t PROGMEM sound_read[] = {C2+T1,D2+T1,E2+T1,F2+T1,G2+T1,MUTE};
-const uint8_t PROGMEM sound_write[] = {G2+T1,F2+T1,E2+T1,D2+T1,C2+T1,MUTE};
-const uint8_t PROGMEM sound_error[] = {C1+T2,T1,C1+T2,MUTE};
-const uint8_t PROGMEM sound_exist[] = {C3+T2,MUTE};
-const uint8_t PROGMEM sound_button[] = {F3+T1,MUTE};
-const uint8_t PROGMEM sound_button2[] = {F3+T2,MUTE};
+const uint8_t sound_read[] PROGMEM = {C2+T1,D2+T1,E2+T1,F2+T1,G2+T1,MUTE};
+const uint8_t sound_write[] PROGMEM = {G2+T1,F2+T1,E2+T1,D2+T1,C2+T1,MUTE};
+const uint8_t sound_error[] PROGMEM = {C1+T2,T1,C1+T2,MUTE};
+const uint8_t sound_exist[] PROGMEM = {C3+T2,MUTE};
+const uint8_t sound_button[] PROGMEM = {F3+T1,MUTE};
+const uint8_t sound_button2[] PROGMEM = {F3+T2,MUTE};
+const uint8_t cy_dal_2_tbl[] PROGMEM = {0x0F, 0x0B, 0x07, 0x03, 0x0E, 0x0A, 0x06, 0x02, 0x0D, 0x09, 0x05, 0x01, 0x0C, 0x08, 0x04, 0x00};
 
 volatile uint8_t button = BUTTON_OFF;
 volatile uint8_t user_rx;
 uint8_t mode = MODE_READ;
 uint8_t key = KEY_NO_KEY;
-uint8_t in_data[16];
-uint8_t temp_data[16];
-uint8_t out_data[16];
+uint8_t in_data[8];
+uint8_t out_data[8];
 char	user_cmd[64];
 void (*reset)() = 0;
 
 ISR(TIMER2_OVF_vect)
 {
-		static uint8_t button_state = 0, button_wait = 0;
-		if(button_wait < 4){ button_wait++; return; }
-		button_wait = 0;
+	static uint8_t button_state = 0, button_wait = 0;
+	if(button_wait < 4){ button_wait++; return; }
+	button_wait = 0;
 
-		if(uart_gets(user_cmd) == UART_OK) user_rx = USER_CMD;
+	if(uart_gets(user_cmd) == UART_OK) user_rx = USER_CMD;
 		
-		if(BUTTON_PIN & (1<<BUTTON_LINE)){
-			button_state = 0;
-			button = BUTTON_OFF;
-			return;
-		}
-		if((BUTTON_PIN & (1<<BUTTON_LINE)) == 0 && button_state == 1){
-			button_state++;
-			sound_play(sound_button);
-			button = BUTTON_ON;
-			return;
-		}
-		if(button_state > 10){
-			if(button_state < 12){
-				button_state++;
-				sound_play(sound_button2);
-				button = BUTTON_HOLD;
-			}
-			return;
-		}
+	if(BUTTON_PIN & (1<<BUTTON_LINE)){
+		button_state = 0;
+		button = BUTTON_OFF;
+		return;
+	}
+	if((BUTTON_PIN & (1<<BUTTON_LINE)) == 0 && button_state == 1){
 		button_state++;
+		sound_play(sound_button);
+		button = BUTTON_ON;
+		return;
+	}
+	if(button_state > 15){
+		if(button_state < 17){
+			button_state++;
+			sound_play(sound_button2);
+			button = BUTTON_HOLD;
+		}
+		return;
+	}
+	button_state++;
 }
 
 void button_init()
@@ -187,10 +187,17 @@ uint8_t dallas_write()
 		result = ds_program_tm08v2(out_data);
 		if(result == DS_READ_ROM_OK){ tag = TAG_TM08; break; }
 		if(result == DS_READ_ROM_NO_PRES) break;
+		result = ds_program_RW1990_2(out_data);
+		if(result == DS_READ_ROM_OK){ tag = TAG_RW1990; break; }
+		if(result == DS_READ_ROM_NO_PRES) break;
 	}
 	if(result == DS_READ_ROM_OK){
 		lcd_clear();
 		lcd_goto_xy(1,3);
+		if(tag == TAG_RW1990){
+			lcd_pstr("RW1990");
+			uart_puts_pstr("RW1990");
+		}
 		if(tag == TAG_TM08){
 			lcd_pstr("tm08v2");
 			uart_puts_pstr("tm08v2");
@@ -326,6 +333,48 @@ void cmd_parse(char* string)
 	sound_play(sound_button);
 }
 
+void encode_metakom_tm01c(uint8_t* in, uint8_t* out)
+{
+	for(uint8_t i=0;i<8;i++) out[i] = 0;
+	out[0] = 0x04;
+	
+	for(uint8_t i=0,byte=0,revers=0;i<8;i++){
+		if((i & 0x01) == 0){
+			byte = in[i/2];
+			revers = byte;
+			for(uint8_t j=0;j<8;j++){
+				byte <<= 1;
+				if((revers >> j) & 0x01) byte |= 1;
+			}
+			revers = byte >> 4;
+			byte <<= 4;
+			byte |= revers;
+			out[(i+1)>>1] |= byte & 0xF0;
+		} else out[(i+1)>>1] |= byte & 0x0F;
+	}
+}
+
+void encode_cyfral_tm01c(uint8_t* in, uint8_t* out)
+{
+	for(uint8_t i=0;i<8;i++) out[i] = 0;
+	out[0] = 0x08;
+	
+	for(uint8_t i=0,in_temp=0,nibble=0,out_temp=0;i<8;i++){
+		if((i & 0x01) == 0){
+			if((i & 0x03) == 0)in_temp = in[i/4];
+			out_temp = 0;
+			for(uint8_t j=0;j<2;j++){
+				nibble = in_temp & 0xC0;
+				nibble >>= 6;
+				out_temp >>= 4;
+				out_temp |= ~(0x80 >> nibble) & 0xF0;
+				in_temp <<= 2;
+			}
+			out[(i+1)>>1] |= out_temp & 0xF0;
+		} else out[(i+1)>>1] |= out_temp & 0x0F;
+	}
+}
+
 uint8_t test_bat()
 {
     ADMUX = (1 << REFS1)|(1 << REFS0) 					// опорное напряжение 1,1v
@@ -351,7 +400,6 @@ int main (void)
 	lcd_contrast(0x44);
 	lcd_image();
 	_delay_ms(1000);
-
 	for(;;){
 		while(mode == MODE_WRITE){		//****************************************************************** WRITING
 			if(key == KEY_DALLAS){		//****************************************************************** DALLAS
@@ -404,17 +452,16 @@ int main (void)
 						break;
 					}
 
-					result = rfid_read(in_data);
-					if(result == RFID_NO_KEY) continue;
-					view_write();
-					
+					result = rfid_force_read(in_data);
 					if(result == RFID_OK){
 						for(uint8_t i=0;i<8;i++)
 						if(in_data[i] != out_data[i]) result = RFID_NO_KEY;
 						if(result == RFID_OK){
 							view_recorded();
+							break;
 						}
 					}
+					
 					for(uint8_t i=0;i<4;i++){
 						result = rfid_program(out_data);
 						if(result == RFID_OK) break;
@@ -433,7 +480,6 @@ int main (void)
 						view_error();
 						break;
 					}
-					if(result == DS_READ_ROM_NO_PRES) break;
 				}
 			}
 				
@@ -467,6 +513,7 @@ int main (void)
 					if(in_data[i] != out_data[i]) result = KT_NO_KEY;
 					if(result != KT_NO_KEY){
 						view_recorded();
+						break;
 					}
 
 					for(uint8_t i=0;i<4;i++){
@@ -494,8 +541,8 @@ int main (void)
 			if(key == KEY_METAKOM){		//****************************************************************** METAKOM
 				lcd_clear();
 				lcd_goto_xy(1,1);
-				lcd_pstr("Тип: Metakom A");
-				uart_puts_pstr("Type: Metakom A\r\n");
+				lcd_pstr("Тип: Metakom");
+				uart_puts_pstr("Type: Metakom\r\n");
 				lcd_goto_xy(3,3);
 				for(uint8_t i=0;i<4;i++){
 					lcd_hex(out_data[i]);
@@ -505,6 +552,8 @@ int main (void)
 				uart_puts_pstr("\r\n");
 				
 				while(1){
+					uint8_t result = DS_READ_ROM_NO_PRES;
+					
 					if(button == BUTTON_ON){
 						button = BUTTON_OFF;
 						key = KEY_MK_DAL_1;
@@ -524,14 +573,39 @@ int main (void)
 						cmd_parse(user_cmd);
 						break;
 					}
+					
+					if(mk_read(in_data) == MK_READ_OK)	ds_erase_tm01c(TM01C_METAKOM);
+					if(ds_read_rom(in_data) == DS_READ_ROM_NO_PRES) continue;
+					view_write();
+					encode_metakom_tm01c(out_data, in_data);
+
+					for(uint8_t i=0;i<4;i++){
+						result = ds_program_tm01c(in_data, TM01C_METAKOM);
+						if(result == DS_READ_ROM_OK) break;
+						if(result == DS_READ_ROM_NO_PRES) break;
+					}
+					if(result == DS_READ_ROM_OK){
+						lcd_clear();
+						lcd_goto_xy(1,3);
+						lcd_pstr("TM-01C записан");
+						uart_puts_pstr("TM-01C is recorded\r\n");
+						sound_play(sound_write);
+						_delay_ms(1000);
+						break;
+					}
+					if(result == DS_READ_ROM_CRC_ERR){
+						view_error();
+						break;
+					}
+					if(result == DS_READ_ROM_NO_PRES) break;
 				}
 			}
 			
 			if(key == KEY_MK_DAL_1 || key == KEY_MK_DAL_2){		//****************************************** METAKOM 2
 				lcd_clear();
 				lcd_goto_xy(1,1);
-				if(key == KEY_MK_DAL_1){ lcd_pstr("Тип: Metakom B"); uart_puts_pstr("Type: Metakom B\r\n"); }
-				if(key == KEY_MK_DAL_2){ lcd_pstr("Тип: Metakom C"); uart_puts_pstr("Type: Metakom C\r\n"); }
+				if(key == KEY_MK_DAL_1){ lcd_pstr("Тип: Metakom A"); uart_puts_pstr("Type: Metakom A\r\n"); }
+				if(key == KEY_MK_DAL_2){ lcd_pstr("Тип: Metakom B"); uart_puts_pstr("Type: Metakom B\r\n"); }
 				view_dallas_code(out_data);
 				
 				while(1){
@@ -575,8 +649,8 @@ int main (void)
 			if(key == KEY_CYFRAL){		//****************************************************************** CYFRAL
 				lcd_clear();
 				lcd_goto_xy(2,1);
-				lcd_pstr("Тип: Cyfral A");
-				uart_puts_pstr("Type: Cyfral A\r\n");
+				lcd_pstr("Тип: Cyfral");
+				uart_puts_pstr("Type: Cyfral\r\n");
 				lcd_goto_xy(5,3);
 				lcd_hex(out_data[0]);
 				lcd_chr(':');
@@ -587,6 +661,8 @@ int main (void)
 				uart_puts_pstr("\r\n");
 				
 				while(1){
+					uint8_t result = DS_READ_ROM_NO_PRES;
+					
 					if(button == BUTTON_ON){
 						button = BUTTON_OFF;
 						key = KEY_CY_DAL_1;
@@ -608,37 +684,69 @@ int main (void)
 						cmd_parse(user_cmd);
 						break;
 					}
+					
+					if(cl_read(in_data) == CL_READ_OK)	ds_erase_tm01c(TM01C_CYFRAL);
+					if(ds_read_rom(in_data) == DS_READ_ROM_NO_PRES) continue;
+					view_write();
+					encode_cyfral_tm01c(out_data, in_data);
+
+					for(uint8_t i=0;i<4;i++){
+						result = ds_program_tm01c(in_data, TM01C_CYFRAL);
+						if(result == DS_READ_ROM_OK) break;
+						if(result == DS_READ_ROM_NO_PRES) break;
+					}
+					if(result == DS_READ_ROM_OK){
+						lcd_clear();
+						lcd_goto_xy(1,3);
+						lcd_pstr("TM-01C записан");
+						uart_puts_pstr("TM-01C is recorded\r\n");
+						sound_play(sound_write);
+						_delay_ms(1000);
+						break;
+					}
+					if(result == DS_READ_ROM_CRC_ERR){
+						view_error();
+						break;
+					}
+					if(result == DS_READ_ROM_NO_PRES) break;
 				}
 			}
 			
-			if(key == KEY_CY_DAL_1){		//************************************************************** CYFRAL2
+			if(key == KEY_CY_DAL_1 || key == KEY_CY_DAL_2){		//************************************************************** CYFRAL2
 				lcd_clear();
 				lcd_goto_xy(2,1);
-				if(key == KEY_CY_DAL_1){ lcd_pstr("Тип: Cyfral B"); uart_puts_pstr("Type: Cyfral B\r\n"); }
-				if(key == KEY_CY_DAL_2){ lcd_pstr("Тип: Cyfral C"); uart_puts_pstr("Type: Cyfral C\r\n"); }
+				if(key == KEY_CY_DAL_1){ lcd_pstr("Тип: Cyfral A"); uart_puts_pstr("Type: Cyfral A\r\n"); }
+				if(key == KEY_CY_DAL_2){ lcd_pstr("Тип: Cyfral B"); uart_puts_pstr("Type: Cyfral B\r\n"); }
 				view_dallas_code(out_data);
 				
 				while(1){
 					if(button == BUTTON_ON){
 						button = BUTTON_OFF;
-/*
 						if(key == KEY_CY_DAL_1){
 							key = KEY_CY_DAL_2;
 							for(uint8_t i=1;i<3;i++){
 								temp = out_data[i];
-								out_data[i] = out_data[5-i];
-								out_data[5-i] = temp;
+								out_data[i] = 0;
+								out_data[i] |= pgm_read_byte(&cy_dal_2_tbl[temp & 0x0F]);						
+								out_data[i] |= pgm_read_byte(&cy_dal_2_tbl[(temp >> 4) & 0x0F]) << 4;
 							}
+							out_data[3] = 0x01;
 							temp = 0;
 							for(uint8_t i=0;i<7;i++) temp = ds_crc(temp,out_data[i]);
 							out_data[7] = temp;
 							break;
-						} else {*/
+						} else if(key == KEY_CY_DAL_2){
 							key = KEY_CYFRAL;
+							for(uint8_t i=1;i<3;i++){
+								temp = out_data[i];
+								out_data[i] = 0;
+								out_data[i] |= pgm_read_byte(&cy_dal_2_tbl[temp & 0x0F]);
+								out_data[i] |= pgm_read_byte(&cy_dal_2_tbl[(temp >> 4) & 0x0F]) << 4;
+							}
 							out_data[1] = out_data[1];
 							out_data[0] = out_data[2];
-							break;
-						//}
+							break;							
+						}
 					}
 					if(button == BUTTON_HOLD){
 						mode = MODE_READ;
