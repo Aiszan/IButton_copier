@@ -352,6 +352,7 @@ void encode_metakom_tm01c(uint8_t* in, uint8_t* out)
 			out[(i+1)>>1] |= byte & 0xF0;
 		} else out[(i+1)>>1] |= byte & 0x0F;
 	}
+	out[5] |= 0xF0;
 }
 
 void encode_cyfral_tm01c(uint8_t* in, uint8_t* out)
@@ -373,6 +374,7 @@ void encode_cyfral_tm01c(uint8_t* in, uint8_t* out)
 			out[(i+1)>>1] |= out_temp & 0xF0;
 		} else out[(i+1)>>1] |= out_temp & 0x0F;
 	}
+	out[5] |= 0xF0;
 }
 
 uint8_t test_bat()

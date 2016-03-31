@@ -231,7 +231,7 @@ uint8_t ds_program_tm01c(uint8_t* data, uint8_t type)
 {
 	if(ds_reset()) return DS_READ_ROM_NO_PRES;
 	ds_write_byte(0xC1);
-	ds_write_bit(0);
+	ds_write_bit(1);
 	_delay_ms(10);
 	if(ds_reset()) return DS_READ_ROM_NO_PRES;
 	ds_write_byte(0xC5);
@@ -245,7 +245,7 @@ uint8_t ds_program_tm01c(uint8_t* data, uint8_t type)
 	if(ds_reset()) return DS_READ_ROM_NO_PRES;
 	if(type == TM01C_METAKOM) ds_write_byte(0xCB);
 	if(type == TM01C_CYFRAL) ds_write_byte(0xCA);
-	ds_write_bit(0);
+	ds_write_bit(1);
 	_delay_ms(30);
 	return DS_READ_ROM_OK;
 }
