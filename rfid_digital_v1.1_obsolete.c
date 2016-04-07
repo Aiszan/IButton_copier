@@ -3,7 +3,7 @@
 #include <util/delay.h>
 #include "rfid.h"
 
-uint8_t rfid_buffer [RFID_BUFFER_SIZE];  //½στεπ RFID
+uint8_t rfid_buffer [RFID_BUFFER_SIZE];  //Β½Γ³Γ΄Γ₯Γ° RFID
 uint8_t rfid_code [64];
 
 void rfid_init()
@@ -146,8 +146,8 @@ uint8_t rfid_read(uint8_t* data)
 			rfid_buffer[i / 8] |= temp << (i % 8);
 		}
 	}
-	if(rfid_decode() != RFID_OK) return RFID_PARITY_ERR; //ηΰνθμΰες δξ 3μρ
-	if(rfid_check() != RFID_OK) return RFID_PARITY_ERR; //ηΰνθμΰες 50μκρ
+	if(rfid_decode() != RFID_OK) return RFID_PARITY_ERR; //Γ§Γ Γ­Γ¨Γ¬Γ Γ₯Γ² Γ€Γ® 3Γ¬Γ±
+	if(rfid_check() != RFID_OK) return RFID_PARITY_ERR; //Γ§Γ Γ­Γ¨Γ¬Γ Γ₯Γ² 50Γ¬ΓͺΓ±
 
 	for(uint8_t byte=0;byte<5;byte++){
 		data[byte] = 0;
