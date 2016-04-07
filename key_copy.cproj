@@ -176,6 +176,18 @@
     <Compile Include="metakom.h">
       <SubType>compile</SubType>
     </Compile>
+    <Compile Include="mmc.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="mmc.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="pff.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="pff.h">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="rfid.c">
       <SubType>compile</SubType>
     </Compile>
