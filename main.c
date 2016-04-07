@@ -11,6 +11,10 @@
 #include "kt-01.h"
 #include "metakom.h"
 #include "cyfral.h"
+#include "mmc.h"
+#include "pff.h"
+
+#define BUF_SIZE    128UL
 
 #define BUTTON_PORT PORTB
 #define BUTTON_PIN  PINB
@@ -19,7 +23,7 @@
 
 enum enum_key{KEY_NO_KEY, KEY_DALLAS, KEY_RFID, KEY_KT01, KEY_METAKOM, KEY_MK_DAL_1, KEY_MK_DAL_2, KEY_CYFRAL, KEY_CY_DAL_1, KEY_CY_DAL_2, KEY_RESIST};
 enum enum_tag{TAG_RW1990, TAG_TM08, TAG_TM2004, TAG_T5557, TAG_KT01, TAG_AUTO, TAG_DEFAULT};
-enum enum_mode{MODE_DEFAULT, MODE_READ, MODE_WRITE};
+enum enum_mode{MODE_DEFAULT, MODE_READ, MODE_WRITE, MODE_MENU};
 enum enum_button{BUTTON_OFF, BUTTON_ON, BUTTON_HOLD};
 enum enum_res{RES_READ_OK, RES_NO_PRES};
 enum enum_user{USER_DEFAULT, USER_CMD};
@@ -34,24 +38,27 @@ const uint8_t cy_dal_2_tbl[] PROGMEM = {0x0F, 0x0B, 0x07, 0x03, 0x0E, 0x0A, 0x06
 
 volatile uint8_t button = BUTTON_OFF;
 volatile uint8_t user_rx;
+FATFS fs;
+FRESULT res;
 uint8_t mode = MODE_READ;
 uint8_t key = KEY_NO_KEY;
 uint8_t in_data[8];
 uint8_t out_data[8];
-char	user_cmd[64];
+uint16_t keys_seek = 0;
+char	user_cmd[BUF_SIZE];
+static char keys[] = "keys.csv";
+//static char logs[] = "key.log";
 void (*reset)() = 0;
 
 ISR(TIMER2_OVF_vect)
 {
-	static uint8_t button_state = 0, button_wait = 0;
-	if(button_wait < 4){ button_wait++; return; }
-	button_wait = 0;
+	static uint8_t button_state = 0;
 
 	if(uart_gets(user_cmd) == UART_OK) user_rx = USER_CMD;
 		
 	if(BUTTON_PIN & (1<<BUTTON_LINE)){
 		button_state = 0;
-		button = BUTTON_OFF;
+		if(button == BUTTON_HOLD) button = BUTTON_OFF;
 		return;
 	}
 	if((BUTTON_PIN & (1<<BUTTON_LINE)) == 0 && button_state == 1){
@@ -60,8 +67,8 @@ ISR(TIMER2_OVF_vect)
 		button = BUTTON_ON;
 		return;
 	}
-	if(button_state > 15){
-		if(button_state < 17){
+	if(button_state > 60){
+		if(button_state < 62){
 			button_state++;
 			sound_play(sound_button2);
 			button = BUTTON_HOLD;
@@ -95,38 +102,63 @@ void adc_init()
 	|(0); 												// вход ADC0
 }
 
-void view_dallas_code(uint8_t* data)
+void view_key_type()
 {
+	lcd_goto_xy(1,1);
+	lcd_pstr("Тип: ");
+	uart_puts_pstr("Type: ");
+	switch(key){
+		case KEY_NO_KEY: return;
+		case KEY_DALLAS: lcd_pstr("Даллас"); uart_puts_pstr("Dallas"); if(ds_crc_check(out_data)){ lcd_chr(MARK); uart_putc('*'); } break;
+		case KEY_RFID: lcd_pstr("Прокси"); uart_puts_pstr("RFID"); break;
+		case KEY_KT01: lcd_pstr("КТ-01"); uart_puts_pstr("KT-01"); break;
+		case KEY_METAKOM: lcd_pstr("Метаком"); uart_puts_pstr("Metakom"); break;
+		case KEY_MK_DAL_1: lcd_pstr("Мет.MK"); uart_puts_pstr("Metakom.MK"); break;
+		case KEY_MK_DAL_2: lcd_pstr("Мет.ELC"); uart_puts_pstr("Metakom.ELC"); break;
+		case KEY_CYFRAL: lcd_pstr("Цифрал"); uart_puts_pstr("Cyfral"); break;
+		case KEY_CY_DAL_1: lcd_pstr("Циф.2094"); uart_puts_pstr("Cyfral.2094.1"); break;
+		case KEY_CY_DAL_2: lcd_pstr("Циф.TC-01"); uart_puts_pstr("Cyfral.TC-01"); break;
+		case KEY_RESIST: lcd_pstr("Резистор"); uart_puts_pstr("Resistor"); break;
+	}
+	uart_puts_pstr("\r\n");
+}
+
+void view_key_code()
+{
+	lcd_goto_xy(1,2);
+	if(key == KEY_DALLAS || key == KEY_KT01 || key == KEY_CY_DAL_1 || key == KEY_CY_DAL_2 || key == KEY_MK_DAL_1 || key == KEY_MK_DAL_2){
+		lcd_hex(out_data[7]);
+		lcd_pstr(":CRC  FAM:");
+		lcd_hex(out_data[0]);
+		if(ds_time && key != KEY_KT01){
+			lcd_goto_xy(1,4);
+			lcd_pstr("таймслот ");
+			lcd_chr(ds_time % 100 / 10 + '0');
+			lcd_chr(ds_time % 10 + '0');
+			lcd_chr(MU);
+			lcd_chr('s');
+		
+			//uart_puts_pstr("timeslot ");
+			//uart_putc(ds_time % 100 / 10 + '0');
+			//uart_putc(ds_time % 10 + '0');
+			//uart_puts_pstr(" us\r\n");
+		
+			ds_time = 0;
+		}
+	}
 	lcd_goto_xy(1,3);
-	lcd_hex(data[7]);
-	lcd_pstr(":CRC  FAM:");
-	lcd_hex(data[0]);
 	for(uint8_t i=0;i<6;i++){
-		lcd_hex(data[6-i]);
+		lcd_hex(out_data[6-i]);
 		if(i<5)lcd_sep();
 	}
 	
 	for(uint8_t i=0;i<8;i++){
-		uart_putc_hex(data[7-i]);
+		uart_putc_hex(out_data[7-i]);
 		if(i<7)uart_putc(':');
 	}
 	uart_puts_pstr("\r\n");
 	
-	if(ds_time){
-		lcd_goto_xy(1,6);
-		lcd_pstr("таймслот ");
-		lcd_chr(ds_time % 100 / 10 + '0');
-		lcd_chr(ds_time % 10 + '0');
-		lcd_chr(MU);
-		lcd_chr('s');
-		
-		//uart_puts_pstr("timeslot ");
-		//uart_putc(ds_time % 100 / 10 + '0');
-		//uart_putc(ds_time % 10 + '0');
-		//uart_puts_pstr(" us\r\n");
-		
-		ds_time = 0;
-	}
+
 }
 
 void view_write()
@@ -386,11 +418,75 @@ uint8_t test_bat()
 	return ADCH;
 }
 
+void keys_read()
+{
+	uint16_t size, i;
+	
+	pf_lseek(keys_seek);	
+	pf_read(user_cmd, BUF_SIZE, &size);
+	if(size == 0){
+		keys_seek = 0;
+		keys_read();
+		return;
+	}
+	for(i=0;i<size;i++){
+		if(user_cmd[i] == '\r'){
+			user_cmd[i] = 0;
+			keys_seek += i+2;
+			break;
+		}
+	}
+
+	i = 0;
+	for(uint8_t byte=0,temp,nibble=0,data = 0;user_cmd[i];i++){
+		temp = user_cmd[i];
+		if(temp == ' ' || temp == ';' || nibble == 2){
+			nibble = 0;
+			out_data[7-byte] = data;
+			byte++;
+			data = 0;
+			if(temp == ';' || byte > 7) break;
+			continue;
+		}
+		if(nibble++ == 1) data <<= 4;
+		if(temp <= '9') data |= temp - '0';
+		else
+		if(temp <= 'F') data |= temp - 'A' + 10;
+		else
+		if(temp <= 'f') data |= temp - 'a' + 10;
+	}
+	i++;
+	key = KEY_NO_KEY;
+	if(cmd_compare(&user_cmd[i], PSTR("Даллас")) == 0) key = KEY_DALLAS;
+	if(cmd_compare(&user_cmd[i], PSTR("Прокси")) == 0) key = KEY_RFID;
+	if(cmd_compare(&user_cmd[i], PSTR("Цифрал")) == 0) key = KEY_CYFRAL;
+	if(cmd_compare(&user_cmd[i], PSTR("Метаком")) == 0) key = KEY_METAKOM;
+	if(cmd_compare(&user_cmd[i], PSTR("КТ-01")) == 0) key = KEY_KT01;
+	for(;user_cmd[i] != ';';i++);
+	i++;
+	
+	lcd_clear();
+	ds_time = 0;
+	view_key_type();
+	view_key_code();
+	lcd_goto_xy(1,5);
+	for(uint8_t byte=0;user_cmd[i] && byte<28;byte++){
+		if(user_cmd[i++] != ';'){
+			lcd_chr(user_cmd[i-1]);
+		} else {
+			lcd_goto_xy(1,6);
+			byte = 13;
+		}
+	}
+}
+
 /***************************************Главная функция*********************************************/
 int main (void)
 {
 	uint16_t temp;
-
+	lcd_init();
+	lcd_contrast(0x44);
+	lcd_image();
 	button_init();
 	adc_init();
 	uart_init();
@@ -398,20 +494,22 @@ int main (void)
 	ds_init();
 	rfid_init();
 	kt_init();
-	lcd_init();
-	lcd_contrast(0x44);
-	lcd_image();
-	_delay_ms(1000);
+	for(uint8_t i=0;i<100;i++){
+		res = pf_mount(&fs);
+		if(res == FR_OK) break;
+	}
+	if(res != FR_OK) uart_puts_pstr("SDcard init ERROR\r\n");
+	_delay_ms(500);
 	for(;;){
 		while(mode == MODE_WRITE){		//****************************************************************** WRITING
+			if(key == KEY_NO_KEY){
+				mode = MODE_READ;
+				break;
+			}
 			if(key == KEY_DALLAS){		//****************************************************************** DALLAS
 				lcd_clear();
-				lcd_goto_xy(2,1);
-				lcd_pstr("Тип: Даллас");
-				uart_puts_pstr("Type: Dallas");
-				if(ds_crc_check(out_data)){ lcd_chr(MARK); uart_putc('*'); }
-				uart_puts_pstr("\r\n");
-				view_dallas_code(out_data);
+				view_key_type();
+				view_key_code();
 				
 				while(1){
 					if(button == BUTTON_ON){
@@ -430,16 +528,8 @@ int main (void)
 				
 			if(key == KEY_RFID){		//****************************************************************** RFID
 				lcd_clear();
-				lcd_goto_xy(2,1);
-				lcd_pstr("Тип: Прокси");
-				uart_puts_pstr("Type: RFID\r\n");
-				lcd_goto_xy(1,3);
-				for(uint8_t i=0;i<5;i++){
-					lcd_hex(out_data[i]);
-					uart_putc_hex(out_data[i]);
-					if(i<4){ lcd_chr(':'); uart_putc(':'); }
-				}
-				uart_puts_pstr("\r\n");
+				view_key_type();
+				view_key_code();
 				
 				while(1){
 					uint8_t result = RFID_NO_KEY;
@@ -487,11 +577,9 @@ int main (void)
 				
 			if(key == KEY_KT01){		//****************************************************************** KT-01
 				lcd_clear();
-				lcd_goto_xy(2,1);
-				lcd_pstr("Тип: KT-01");
-				uart_puts_pstr("Type: KT-01\r\n");
-				view_dallas_code(out_data);
-				lcd_goto_xy(1,6);
+				view_key_type();
+				view_key_code();
+				lcd_goto_xy(1,4);
 				lcd_pstr("Подключите щуп");
 				
 				while(1){
@@ -542,26 +630,18 @@ int main (void)
 				
 			if(key == KEY_METAKOM){		//****************************************************************** METAKOM
 				lcd_clear();
-				lcd_goto_xy(1,1);
-				lcd_pstr("Тип: Metakom");
-				uart_puts_pstr("Type: Metakom\r\n");
-				lcd_goto_xy(3,3);
-				for(uint8_t i=0;i<4;i++){
-					lcd_hex(out_data[i]);
-					uart_putc_hex(out_data[i]);
-					if(i<3){ lcd_chr(':'); uart_putc(':'); }
-				}
-				uart_puts_pstr("\r\n");
+				view_key_type();
+				view_key_code();
 				
 				while(1){
-					uint8_t result = DS_READ_ROM_NO_PRES;
+					//uint8_t result = DS_READ_ROM_NO_PRES;
 					
 					if(button == BUTTON_ON){
 						button = BUTTON_OFF;
 						key = KEY_MK_DAL_1;
-						for(uint8_t i=4;i>0;i--) out_data[i] = out_data[i-1];
 						out_data[0] = 0x01;
-						for(uint8_t i=5;i<7;i++) out_data[i] = 0;
+						out_data[5] = 0;
+						out_data[6] = 0;
 						uint8_t temp = 0;
 						for(uint8_t i=0;i<7;i++) temp = ds_crc(temp,out_data[i]);
 						out_data[7] = temp;
@@ -569,6 +649,7 @@ int main (void)
 					}
 					if(button == BUTTON_HOLD){
 						mode = MODE_READ;
+						button = BUTTON_OFF;
 						break;
 					}
 					if(user_rx == USER_CMD){
@@ -576,6 +657,7 @@ int main (void)
 						break;
 					}
 					
+/*
 					if(mk_read(in_data) == MK_READ_OK)	ds_erase_tm01c(TM01C_METAKOM);
 					if(ds_read_rom(in_data) == DS_READ_ROM_NO_PRES) continue;
 					view_write();
@@ -599,16 +681,14 @@ int main (void)
 						view_error();
 						break;
 					}
-					if(result == DS_READ_ROM_NO_PRES) break;
+					if(result == DS_READ_ROM_NO_PRES) break;*/
 				}
 			}
 			
 			if(key == KEY_MK_DAL_1 || key == KEY_MK_DAL_2){		//****************************************** METAKOM 2
 				lcd_clear();
-				lcd_goto_xy(1,1);
-				if(key == KEY_MK_DAL_1){ lcd_pstr("Тип: Metakom A"); uart_puts_pstr("Type: Metakom A\r\n"); }
-				if(key == KEY_MK_DAL_2){ lcd_pstr("Тип: Metakom B"); uart_puts_pstr("Type: Metakom B\r\n"); }
-				view_dallas_code(out_data);
+				view_key_type();
+				view_key_code();
 				
 				while(1){
 					if(button == BUTTON_ON){
@@ -631,12 +711,12 @@ int main (void)
 								out_data[i] = out_data[5-i];
 								out_data[5-i] = temp;
 							}
-							for(uint8_t i=0;i<4;i++) out_data[i] = out_data[i+1];
 							break;
 						}
 					}
 					if(button == BUTTON_HOLD){
 						mode = MODE_READ;
+						button = BUTTON_OFF;
 						break;
 					}
 					if(user_rx == USER_CMD){
@@ -650,29 +730,16 @@ int main (void)
 				
 			if(key == KEY_CYFRAL){		//****************************************************************** CYFRAL
 				lcd_clear();
-				lcd_goto_xy(2,1);
-				lcd_pstr("Тип: Cyfral");
-				uart_puts_pstr("Type: Cyfral\r\n");
-				lcd_goto_xy(5,3);
-				lcd_hex(out_data[0]);
-				lcd_chr(':');
-				lcd_hex(out_data[1]);
-				uart_putc_hex(out_data[0]);
-				uart_putc(':');
-				uart_putc_hex(out_data[1]);
-				uart_puts_pstr("\r\n");
+				view_key_type();
+				view_key_code();
 				
 				while(1){
-					uint8_t result = DS_READ_ROM_NO_PRES;
+					//uint8_t result = DS_READ_ROM_NO_PRES;
 					
 					if(button == BUTTON_ON){
 						button = BUTTON_OFF;
 						key = KEY_CY_DAL_1;
-						out_data[2] = out_data[0];
 						out_data[0] = 0x01;
-						out_data[1] = out_data[1];
-						out_data[3] = 0x80;
-						for(uint8_t i=4;i<7;i++) out_data[i] = 0;
 						temp = 0;
 						for(uint8_t i=0;i<7;i++) temp = ds_crc(temp,out_data[i]);
 						out_data[7] = temp;
@@ -680,6 +747,7 @@ int main (void)
 					}
 					if(button == BUTTON_HOLD){
 						mode = MODE_READ;
+						button = BUTTON_OFF;
 						break;
 					}
 					if(user_rx == USER_CMD){
@@ -687,6 +755,7 @@ int main (void)
 						break;
 					}
 					
+/*
 					if(cl_read(in_data) == CL_READ_OK)	ds_erase_tm01c(TM01C_CYFRAL);
 					if(ds_read_rom(in_data) == DS_READ_ROM_NO_PRES) continue;
 					view_write();
@@ -710,16 +779,14 @@ int main (void)
 						view_error();
 						break;
 					}
-					if(result == DS_READ_ROM_NO_PRES) break;
+					if(result == DS_READ_ROM_NO_PRES) break;*/
 				}
 			}
 			
 			if(key == KEY_CY_DAL_1 || key == KEY_CY_DAL_2){		//************************************************************** CYFRAL2
 				lcd_clear();
-				lcd_goto_xy(2,1);
-				if(key == KEY_CY_DAL_1){ lcd_pstr("Тип: Cyfral A"); uart_puts_pstr("Type: Cyfral A\r\n"); }
-				if(key == KEY_CY_DAL_2){ lcd_pstr("Тип: Cyfral B"); uart_puts_pstr("Type: Cyfral B\r\n"); }
-				view_dallas_code(out_data);
+				view_key_type();
+				view_key_code();
 				
 				while(1){
 					if(button == BUTTON_ON){
@@ -732,7 +799,7 @@ int main (void)
 								out_data[i] |= pgm_read_byte(&cy_dal_2_tbl[temp & 0x0F]);						
 								out_data[i] |= pgm_read_byte(&cy_dal_2_tbl[(temp >> 4) & 0x0F]) << 4;
 							}
-							out_data[3] = 0x01;
+							out_data[3] = 0x80;
 							temp = 0;
 							for(uint8_t i=0;i<7;i++) temp = ds_crc(temp,out_data[i]);
 							out_data[7] = temp;
@@ -745,13 +812,13 @@ int main (void)
 								out_data[i] |= pgm_read_byte(&cy_dal_2_tbl[temp & 0x0F]);
 								out_data[i] |= pgm_read_byte(&cy_dal_2_tbl[(temp >> 4) & 0x0F]) << 4;
 							}
-							out_data[1] = out_data[1];
-							out_data[0] = out_data[2];
+							out_data[3] = 0x01;
 							break;							
 						}
 					}
 					if(button == BUTTON_HOLD){
 						mode = MODE_READ;
+						button = BUTTON_OFF;
 						break;
 					}
 					if(user_rx == USER_CMD){
@@ -813,9 +880,7 @@ int main (void)
 				
 				if(resist_read(in_data) == RES_READ_OK){
 					lcd_clear();
-					lcd_goto_xy(2,1);
-					lcd_pstr("Тип: Резистор");
-					uart_puts_pstr("Type: Resistor\r\n");
+					view_key_type();
 					lcd_goto_xy(4,3);
 					lcd_str((char*)in_data);
 					uart_puts((char*)in_data);
@@ -825,7 +890,49 @@ int main (void)
 					while(button == BUTTON_OFF);
 					break;
 				}
-				
+				if(button == BUTTON_ON){
+					button = BUTTON_OFF;
+					mode = MODE_MENU;
+					break;
+				}
+				if(button == BUTTON_HOLD){
+					button = BUTTON_OFF;
+					break;
+				}
+				if(user_rx == USER_CMD){
+					cmd_parse(user_cmd);
+					break;
+				}
+			}
+		}
+		while(mode == MODE_MENU){
+			res = pf_open(keys);
+			if(res != FR_OK){
+				uart_puts_pstr("Can't open keys\r\n");
+				mode = MODE_READ;
+				break;
+			}
+			uint16_t time = 0;
+			keys_seek = 0;
+			button = BUTTON_ON;
+			while(1){
+				time++;
+				_delay_ms(10);
+				if(time > 500){
+					mode = MODE_WRITE;
+					sound_play(sound_read);
+					break;
+				}
+				if(button == BUTTON_ON){
+					button = BUTTON_OFF;
+					keys_read();
+					time = 0;
+				}
+				if(button == BUTTON_HOLD){
+					keys_read();
+					_delay_ms(200);
+					time = 0;
+				}
 				if(user_rx == USER_CMD){
 					cmd_parse(user_cmd);
 					break;
@@ -834,4 +941,4 @@ int main (void)
 		}
 		if(mode != MODE_READ && mode != MODE_WRITE) mode = MODE_READ;
 	}
-}		
+}

@@ -59,7 +59,7 @@ void rfid_encode(uint8_t* data)
 	for(uint8_t nibble=0;nibble<10;nibble++){
 		uint8_t parity = 0;
 		for(uint8_t bit=0;bit<4;bit++){
-			rfid_code[nibble*5+bit+9] = data[(nibble*4+bit)/8] & (0x80>>((nibble*4+bit)%8));
+			rfid_code[nibble*5+bit+9] = data[5-((nibble*4+bit)/8)] & (0x80>>((nibble*4+bit)%8));
 			if(rfid_code[nibble*5+bit+9]) parity ^=1;
 		}
 		rfid_code[nibble*5+4+9] = parity;
@@ -163,14 +163,18 @@ uint8_t rfid_read(uint8_t* data)
 	}
 	if(rfid_decode() != RFID_OK) return RFID_PARITY_ERR; //занимает до 3мс
 	if(rfid_check() != RFID_OK) return RFID_PARITY_ERR; //занимает 50мкс
-
+	
+	data[0] = 0;
 	for(uint8_t byte=0;byte<5;byte++){
-		data[byte] = 0;
+		data[5-byte] = 0;
 		for(uint8_t nibble=0;nibble<2;nibble++){
 			for(uint8_t bit=0;bit<4;bit++)
-			data[byte] |= rfid_code[byte*10+nibble*5+bit+9] << (7-(bit+nibble*4));
+			data[5-byte] |= rfid_code[byte*10+nibble*5+bit+9] << (7-(bit+nibble*4));
 		}
 	}
+	data[6] = 0;
+	data[7] = 0;
+	
 	return RFID_OK;
 }
 
@@ -197,10 +201,10 @@ uint8_t rfid_program(uint8_t* data)
 	rfid_on();
 	_delay_ms(20);
 	
-	uint8_t temp = 0;
-	for(uint8_t i=0;i<5;i++) data[i+8] = ~data[i];
-	temp = rfid_force_read(data+8);
-	if(temp != RFID_OK) return temp;
-	for(uint8_t i=0;i<5;i++)if(data[i] != data[i+8]) return RFID_PARITY_ERR;
+	uint8_t temp_data[8];
+	for(uint8_t i=1;i<6;i++) temp_data[i] = ~data[i];
+	uint8_t result = rfid_force_read(temp_data);
+	if(result != RFID_OK) return result;
+	for(uint8_t i=1;i<6;i++)if(data[i] != temp_data[i]) return RFID_PARITY_ERR;
 	return RFID_OK;
 }

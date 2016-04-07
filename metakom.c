@@ -13,7 +13,7 @@
 
 uint8_t mk_crc(uint8_t* data)
 {
-	for(uint8_t i=0;i<4;i++) data[i] = 0;				//очищаем массив кода ключа
+	for(uint8_t i=0;i<8;i++) data[i] = 0;				//очищаем массив кода ключа
 	
 	if((mk_code[0] & 0xE0) != 0b01000000) return MK_NO_KEY;	//проверяем наличие стартового слова
 	
@@ -21,14 +21,14 @@ uint8_t mk_crc(uint8_t* data)
 		if(((mk_code[i/8]<<(i%8)) & 0x80) != ((mk_code[(i+35)/8]<<((i+35)%8)) & 0x80)) return MK_NO_KEY;
 															
 	for(uint8_t i=0;i<32;i++)								//копируем код ключа в массив
-		if(mk_code[(i+3)/8] & 0x80>>((i+3)%8)) data[i/8] |= 0x80>>(i%8);
+		if(mk_code[(i+3)/8] & 0x80>>((i+3)%8)) data[4-(i/8)] |= 0x80>>(i%8);
 	
 	for(uint8_t i=0;i<4;i++){								//проверяем четность
 		uint8_t parity = 0;
 		for(uint8_t j=0;j<7;j++){
-			if(data[i] & 0x80>>j) parity ^= 0x01; 
+			if(data[4-i] & 0x80>>j) parity ^= 0x01;
 		}
-		if((data[i] & 0x01) != parity) return MK_NO_KEY;
+		if((data[4-i] & 0x01) != parity) return MK_NO_KEY;
 	}
 	return MK_READ_OK;
 }
