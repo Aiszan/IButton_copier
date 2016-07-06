@@ -12,9 +12,7 @@
 #define KT_LINE 0
 #define KT_PROG 1
 
-#define KT_READ_ROM_OK	0
-#define KT_NO_KEY		1
-#define KT_CRC_ERR		2
+enum enum_kt{KT_READ_ROM_OK, KT_NO_KEY, KT_CRC_ERR};
 
 void kt_init(void);
 //uint8_t kt_crc(uint8_t* data, uint8_t len);

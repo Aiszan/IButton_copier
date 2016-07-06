@@ -140,7 +140,7 @@ void lcd_str(char *str)
 }
 
 /* Displays string in progmem at current cursor location and increment cursor location */
-void lcd_str_P(const char *progmem_s)
+void lcd_str_p(const char *progmem_s)
 /* print string from program memory on lcd (no auto linefeed) */
 {
     register char c;
@@ -243,7 +243,8 @@ void lcd_sep_mini()
 }
 
 // Set the base address of the lcd
-void lcd_base_addr(unsigned int addr) {
+void lcd_base_addr(unsigned int addr)
+{
 	lcd_send(0x80 |(addr % LCD_X_RES), LCD_CMD);
 	lcd_send(0x40 |(addr / LCD_X_RES), LCD_CMD);
 }

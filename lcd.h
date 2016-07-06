@@ -16,11 +16,11 @@
 #define LCD_CACHE_SIZE ((LCD_X_RES * LCD_Y_RES) / 8)
 
 /* Pinout for LCD */
-#define LCD_CLK_PIN 	(1<<PD2)
-#define LCD_DATA_PIN 	(1<<PD3)
+#define LCD_CLK_PIN 	(1<<PD7)
+#define LCD_DATA_PIN 	(1<<PD5)
 #define LCD_DC_PIN 		(1<<PD4)
-#define LCD_CE_PIN 		(1<<PD5)
-#define LCD_RST_PIN 	(1<<PD7)
+#define LCD_CE_PIN 		(1<<PD3)
+#define LCD_RST_PIN 	(1<<PD2)
 #define LCD_PORT		PORTD
 #define LCD_DDR			DDRD
 
@@ -45,6 +45,7 @@
 #define MU		 	ICON(17)
 #define GRAY	 	ICON(18)
 #define DEGREE		ICON(19)
+#define SDCARD		ICON(20)
 
 /* Function for my special characters */
 #define	ICON(x)		'~'+2+x
@@ -58,8 +59,8 @@ void lcd_goto_xy(unsigned char x, unsigned char y);
 void lcd_goto_xy_exact(unsigned char x, unsigned char y);
 void lcd_chr(char chr);
 void lcd_str(char* str);
-void lcd_str_P(const char* progmem_s);
-#define lcd_str_p(__s)         lcd_str_P(PSTR(__s))
+void lcd_str_p(const char* progmem_s);
+#define lcd_pstr(__s)         lcd_str_p(PSTR(__s))
 void lcd_hex(char hex);
 void lcd_sep(void);
 

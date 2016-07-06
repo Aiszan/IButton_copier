@@ -118,9 +118,11 @@ uint8_t kt_reset(void)
 
 uint8_t kt_read_rom(uint8_t* data)
 {
+	uint8_t temp[16];
 	if(kt_reset()) return KT_NO_KEY;
-	for(uint8_t i=0;i<16;i++) data[i] = kt_read_byte();
-	if(kt_crc_check(data)) return KT_CRC_ERR;
+	for(uint8_t i=0;i<16;i++) temp[i] = kt_read_byte();
+	for(uint8_t i=0;i<8;i++) data[i] = temp[i];
+	if(kt_crc_check(temp)) return KT_CRC_ERR;
 	return KT_READ_ROM_OK;
 }
 
@@ -129,10 +131,13 @@ uint8_t kt_write_rom(uint8_t* data)
 	if(kt_reset()) return KT_NO_KEY;
 	KT_PORT |= 1<<KT_PROG;
 	_delay_ms(45);
-	for(uint8_t i=0;i<16;i++) kt_write_byte(data[i]);
+	for(uint8_t i=0;i<8;i++) kt_write_byte(data[i]);
+	for(uint8_t i=0;i<8;i++) kt_write_byte(data[i]);
 	KT_PORT &= ~(1<<KT_PROG);
 	if(kt_reset()) return KT_NO_KEY;
-	for(uint8_t i=0;i<16;i++)
+	for(uint8_t i=0;i<8;i++)
+		if(kt_read_byte() != data[i]) return KT_CRC_ERR;
+	for(uint8_t i=0;i<8;i++)
 		if(kt_read_byte() != data[i]) return KT_CRC_ERR;
 	return KT_READ_ROM_OK;
 }

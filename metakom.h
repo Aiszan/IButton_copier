@@ -6,11 +6,13 @@
  */ 
 #pragma once
 
-#define MK_READ_OK		0
-#define MK_NO_KEY		1
+#define MK_PORT	PORTC
+#define MK_DDR	DDRC
+#define MK_ADC	0
 
-uint8_t mk_data[4];
+enum enum_mk{MK_READ_OK, MK_NO_KEY};
 
-void mk_init(void);
-//uint8_t mk_crc(void);
+uint8_t mk_code[9];
+
+uint8_t mk_crc(uint8_t* data);
 uint8_t mk_read(uint8_t* data);
