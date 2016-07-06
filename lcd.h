@@ -45,6 +45,7 @@
 #define MU		 	ICON(17)
 #define GRAY	 	ICON(18)
 #define DEGREE		ICON(19)
+#define SDCARD		ICON(20)
 
 /* Function for my special characters */
 #define	ICON(x)		'~'+2+x

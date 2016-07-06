@@ -54,7 +54,3 @@ uint8_t ds_program_RW1990_2(uint8_t* data);
 uint8_t ds_program_tm08v2(uint8_t* data);
 
 uint8_t ds_program_tm2004(uint8_t* data);
-
-uint8_t ds_program_tm01c(uint8_t* data, uint8_t type);
-
-uint8_t ds_erase_tm01c(uint8_t type);

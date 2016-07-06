@@ -140,6 +140,12 @@
     </ToolchainSettings>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="byteordering.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="byteordering.h">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="cyfral.c">
       <SubType>compile</SubType>
     </Compile>
@@ -150,6 +156,15 @@
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="dallas.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="fat.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="fat.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="fat_config.h">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="kt-01.c">
@@ -176,22 +191,31 @@
     <Compile Include="metakom.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="mmc.c">
+    <Compile Include="partition.c">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="mmc.h">
+    <Compile Include="partition.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="pff.c">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="pff.h">
+    <Compile Include="partition_config.h">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="rfid.c">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="rfid.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="sd-reader_config.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="sd_raw.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="sd_raw.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="sd_raw_config.h">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="sound.c">

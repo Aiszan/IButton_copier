@@ -156,18 +156,22 @@ uint8_t ds_timeslot()
 
 uint8_t ds_read_rom(uint8_t* data)
 {
-	ds_time = ds_timeslot();
-	if(ds_time < 10) return DS_READ_ROM_NO_PRES;
+	uint8_t time = 0;
+	ds_time = 0;
+	if(( time = ds_timeslot() ) < 10) return DS_READ_ROM_NO_PRES;
 	ds_write_byte(0x33);
 	for(uint8_t i=0;i<8;i++) data[i] = ds_read_byte();
 	if(ds_crc_check(data)){
-		ds_time = ds_timeslot();
-		if(ds_time < 10) return DS_READ_ROM_NO_PRES;
-		ds_write_byte(0x33);
-		for(uint8_t i=0;i<8;i++)
-			if(data[i] != ds_read_byte()) return DS_READ_ROM_NO_PRES;
+		for(uint8_t t=0;t<8;t++){
+			if(( time = ds_timeslot() ) < 10) return DS_READ_ROM_NO_PRES;
+			ds_write_byte(0x33);
+			for(uint8_t i=0;i<8;i++)
+				if(data[i] != ds_read_byte()) return DS_READ_ROM_NO_PRES;
+		}
+		ds_time = time;
 		return DS_READ_ROM_CRC_ERR;
 	}
+	ds_time = time;
 	return DS_READ_ROM_OK;
 }
 
@@ -224,46 +228,5 @@ uint8_t ds_program_tm2004(uint8_t* data)
 		if(ds_read_byte() != data[i]) return DS_READ_ROM_CRC_ERR;
 		crc = i + 1;
 	}
-	return DS_READ_ROM_OK;
-}
-
-uint8_t ds_program_tm01c(uint8_t* data, uint8_t type)
-{
-	if(ds_reset()) return DS_READ_ROM_NO_PRES;
-	ds_write_byte(0xC1);
-	ds_write_bit(1);
-	_delay_ms(10);
-	if(ds_reset()) return DS_READ_ROM_NO_PRES;
-	ds_write_byte(0xC5);
-	_delay_ms(10);
-	for(unsigned char i=0;i<8;i++) ds_program_byte(data[i]);
-	if(ds_reset()) return DS_READ_ROM_NO_PRES;
-	ds_write_byte(0x33);
-	for(uint8_t i=0;i<8;i++) if(data[i] != ds_read_byte()) return DS_READ_ROM_CRC_ERR;
-	if(type == TM01C_DALLAS) return DS_READ_ROM_OK;
-	
-	if(ds_reset()) return DS_READ_ROM_NO_PRES;
-	if(type == TM01C_METAKOM) ds_write_byte(0xCB);
-	if(type == TM01C_CYFRAL) ds_write_byte(0xCA);
-	ds_write_bit(1);
-	_delay_ms(30);
-	return DS_READ_ROM_OK;
-}
-
-uint8_t ds_erase_tm01c(uint8_t type)
-{
-	if(ds_reset()) return DS_READ_ROM_NO_PRES;
-	if(type == TM01C_METAKOM) ds_write_byte(0xB4);
-	if(type == TM01C_METAKOM) ds_write_byte(0xB6);
-	ds_write_bit(1);
-	if(ds_reset()) return DS_READ_ROM_NO_PRES;
-	if(type == TM01C_METAKOM) ds_write_byte(0xCB);
-	if(type == TM01C_METAKOM) ds_write_byte(0xCA);
-	ds_write_bit(0);
-	_delay_ms(10);
-	if(ds_reset()) return DS_READ_ROM_NO_PRES;
-	if(type == TM01C_METAKOM) ds_write_byte(0xB4);
-	if(type == TM01C_METAKOM) ds_write_byte(0xB6);
-	ds_write_bit(0);
 	return DS_READ_ROM_OK;
 }
