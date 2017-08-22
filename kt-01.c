@@ -48,7 +48,7 @@ uint8_t kt_crc_check(uint8_t* data)
 
 	if(zero==0) return 1;
 	if(crc==0)return 0;
-	return 1;
+	return 2;
 }
 
 void kt_out(uint8_t databyte)
@@ -122,7 +122,13 @@ uint8_t kt_read_rom(uint8_t* data)
 	if(kt_reset()) return KT_NO_KEY;
 	for(uint8_t i=0;i<16;i++) temp[i] = kt_read_byte();
 	for(uint8_t i=0;i<8;i++) data[i] = temp[i];
-	if(kt_crc_check(temp)) return KT_CRC_ERR;
+	if(kt_crc_check(temp)){
+		for(uint8_t t=0;t<8;t++){
+			if(kt_reset()) return KT_NO_KEY;
+			for(uint8_t i=0;i<16;i++)
+				if(temp[i] != kt_read_byte()) return KT_NO_KEY;
+		}
+	}
 	return KT_READ_ROM_OK;
 }
 

@@ -15,8 +15,8 @@
 enum enum_kt{KT_READ_ROM_OK, KT_NO_KEY, KT_CRC_ERR};
 
 void kt_init(void);
-//uint8_t kt_crc(uint8_t* data, uint8_t len);
-//uint8_t kt_crc_check();
+uint8_t kt_crc(uint8_t* data, uint8_t len);
+//uint8_t kt_crc_check(uint8_t* data);
 uint8_t kt_read_rom(uint8_t* data);
 uint8_t kt_reset(void);
 //uint8_t kt_read_byte(void);

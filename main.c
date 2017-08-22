@@ -26,7 +26,7 @@
 
 enum enum_key{KEY_NO_KEY, KEY_DALLAS, KEY_RFID, KEY_KT01, KEY_METAKOM, KEY_MK_DAL_1, KEY_MK_DAL_2, KEY_CYFRAL, KEY_CY_DAL_1, KEY_CY_DAL_2, KEY_RESIST};
 enum enum_tag{TAG_RW1990, TAG_TM08, TAG_TM2004, TAG_T5557, TAG_KT01, TAG_AUTO, TAG_DEFAULT};
-enum enum_mode{MODE_DEFAULT, MODE_MENU, MODE_WRITE, MODE_READ, MODE_LIST, MODE_LOG, MODE_CLEAR, MODE_RAND_DALLAS, MODE_RAND_PROXY};
+enum enum_mode{MODE_DEFAULT, MODE_MENU, MODE_WRITE, MODE_READ, MODE_LIST, MODE_RAND_DALLAS, MODE_RAND_PROXY, MODE_LOG, MODE_CLEAR};
 enum enum_button{BUTTON_OFF, BUTTON_ON, BUTTON_HOLD};
 enum enum_res{RES_READ_OK, RES_NO_PRES};
 enum enum_user{USER_DEFAULT, USER_CMD};
@@ -37,6 +37,7 @@ const uint8_t sound_error[] PROGMEM = {C1+T2,T1,C1+T2,MUTE};
 const uint8_t sound_exist[] PROGMEM = {C3+T2,MUTE};
 const uint8_t sound_button[] PROGMEM = {F3+T1,MUTE};
 const uint8_t sound_button2[] PROGMEM = {D3+T1,MUTE};
+const uint8_t sound_timer[] PROGMEM = {C3+T2,C2+T2,MUTE+T2,C3+T2,C2+T2,MUTE};
 const uint8_t cy_dal_2_tbl[] PROGMEM = {0x0F, 0x0B, 0x07, 0x03, 0x0E, 0x0A, 0x06, 0x02, 0x0D, 0x09, 0x05, 0x01, 0x0C, 0x08, 0x04, 0x00};
 
 volatile uint8_t button = BUTTON_OFF;
@@ -58,32 +59,46 @@ struct fat_dir_struct* dd;
 struct fat_file_struct* fd;
 void (*reset)() = 0;
 
-ISR(TIMER2_OVF_vect)
+uint16_t test_bat()
+{
+	ADMUX = (1 << REFS1)|(1 << REFS0) 					// опорное напряжение 1,1v
+	|(1 << ADLAR)										// смещение результата (влево при 1, читаем 8 бит из ADCH)
+	|(6); 											    // вход ADC6
+	_delay_ms(1);
+	return ADCH*162;
+}
+
+ISR(TIMER2_OVF_vect)									//опрос кнопки
 {
 	static uint8_t button_state = 0;
-
+	static uint16_t timer = 0;
+	
 	if(uart_gets(user_cmd) == UART_OK) user_rx = USER_CMD;
-		
-	if(BUTTON_PIN & (1<<BUTTON_LINE)){
-		button_state = 0;
-		if(button == BUTTON_HOLD) button = BUTTON_OFF;
-		return;
-	}
-	if((BUTTON_PIN & (1<<BUTTON_LINE)) == 0 && button_state == 1){
-		button_state++;
-		sound_play(sound_button);
-		button = BUTTON_ON;
-		return;
-	}
-	if(button_state > 60){
-		if(button_state < 62){
+	
+	if(BUTTON_PIN & (1<<BUTTON_LINE)){					//кнопка отпущена
+		if(button == BUTTON_OFF){
+			if(button_state >= 60) button_state = 0;
+			if(button_state > 1){
+				button_state = 0;
+				button = BUTTON_ON;
+				sound_play(sound_button);
+			}
+		}else if(button == BUTTON_HOLD) button = BUTTON_OFF;
+	}else{												//кнопка нажата
+		if(button_state == 60){
 			button_state++;
-			sound_play(sound_button2);
 			button = BUTTON_HOLD;
+			sound_play(sound_button2);
 		}
-		return;
+		if(button_state < 60)button_state++;
+		timer = 0;
 	}
-	button_state++;
+	if(timer > 20000){									//таймер бездействия, 5 минут
+		if(test_bat() < 600){timer = 0; return;}
+		timer -= 400;
+		sound_play(sound_timer);
+	}
+	timer++;
 }
 
 void button_init()
@@ -206,7 +221,7 @@ void view_key_type()
 		case KEY_NO_KEY: return;
 		case KEY_DALLAS: lcd_pstr("Даллас"); uart_puts_pstr("Dallas"); if(ds_crc_check(out_data)){ lcd_chr(MARK); uart_putc('*'); } break;
 		case KEY_RFID: lcd_pstr("Прокси"); uart_puts_pstr("RFID"); break;
-		case KEY_KT01: lcd_pstr("КТ-01"); uart_puts_pstr("KT-01"); break;
+		case KEY_KT01: lcd_pstr("КТ-01"); uart_puts_pstr("KT-01"); if(kt_crc(out_data,8)){ lcd_chr(MARK); uart_putc('*'); } break;
 		case KEY_METAKOM: lcd_pstr("Метаком"); uart_puts_pstr("Metakom"); break;
 		case KEY_MK_DAL_1: lcd_pstr("Мет.MK99"); uart_puts_pstr("Metakom.MK99"); break;
 		case KEY_MK_DAL_2: lcd_pstr("Мет.ELC"); uart_puts_pstr("Metakom.ELC"); break;
@@ -259,13 +274,12 @@ void view_key_code()
 void view_menu(uint8_t new_mode)
 {
 	lcd_clear();
-	lcd_pstr(" Чтение       ");
 	lcd_pstr(" Список       ");
-	lcd_pstr(" Смотреть лог ");
-	lcd_pstr(" Очистить лог ");	
 	lcd_pstr(" Рандом Даллас");
 	lcd_pstr(" Рандом Прокси");
-	lcd_goto_xy(1,new_mode-MODE_READ+1);
+	lcd_pstr(" Смотреть лог ");
+	lcd_pstr(" Очистить лог ");	
+	lcd_goto_xy(1,new_mode-MODE_LIST+1);
 	lcd_chr(ARROW_RIGHT);
 }
 
@@ -399,15 +413,6 @@ uint8_t resist_read(uint8_t* data)
 	}
 	repeat = 0;
 	return RES_NO_PRES;
-}
-
-uint8_t test_bat()
-{
-	ADMUX = (1 << REFS1)|(1 << REFS0) 					// опорное напряжение 1,1v
-	|(1 << ADLAR)										// смещение результата (влево при 1, читаем 8 бит из ADCH)
-	|(6); 											    // вход ADC6
-	_delay_ms(1);
-	return ADCH;
 }
 
 void str_add_p(char* buffer, const char *progmem_s)
@@ -620,7 +625,7 @@ void logs_write()
 	uint8_t size = strlen(file_buf);
 	str_putdw_dec(file_buf+size, file_size/35);
 	size = strlen(file_buf);
-	str_add_p(file_buf+size, PSTR("\r\n"));
+	str_add_p(file_buf+size, PSTR(";\r\n"));
 
 	/* write text to file */
 	uint16_t data_len = strlen(file_buf);
@@ -663,7 +668,7 @@ int main (void)
 			
 			if(key == KEY_DALLAS){		//****************************************************************** WRITE DALLAS
 				while(1){
-					if(button == BUTTON_ON){
+					if(button != BUTTON_OFF){
 						button = BUTTON_OFF;
 						mode = MODE_READ;
 						break;
@@ -683,8 +688,9 @@ int main (void)
 			if(key == KEY_RFID){		//****************************************************************** WRITE RFID
 				while(1){
 					uint8_t result = RFID_NO_KEY;
+					uint8_t key_type = 0;
 					
-					if(button == BUTTON_ON){
+					if(button != BUTTON_OFF){
 						button = BUTTON_OFF;
 						mode = MODE_READ;
 						break;
@@ -694,32 +700,37 @@ int main (void)
 						break;
 					}
 
-					result = rfid_force_read(in_data);
-					if(result == RFID_OK){
-						for(uint8_t i=0;i<8;i++)
-						if(in_data[i] != out_data[i]) result = RFID_NO_KEY;
-						if(result == RFID_OK){
-							view_recorded();
-							break;
-						}
+					if(rfid_check(out_data) == RFID_OK){
+						view_recorded();
+						break;
 					}
 					
 					for(uint8_t i=0;i<4;i++){
-						result = rfid_program(out_data);
+						key_type = 0;
+						result = rfid_em4305_write(out_data);
+						if(result == RFID_OK) break;
+						key_type = 1;
+						result = rfid_t5557_write(out_data);
 						if(result == RFID_OK) break;
 						if(result == RFID_NO_KEY) break;
 					}
+			
 					if(result == RFID_OK){
 						lcd_clear();
 						lcd_goto_xy(1,3);
-						lcd_pstr("t5557 записан");
-						uart_puts_pstr("t5557 is recorded\r\n");
+						if(key_type == 0){
+							lcd_pstr("EM4305 записан");
+							uart_puts_pstr("EM4305 is recorded\r\n");
+						} else {
+							lcd_pstr("T5557 записан");
+							uart_puts_pstr("t5557 is recorded\r\n");
+						}
 						sound_play(sound_write);
 						_delay_ms(1000);
 						mode = mode_loop;
 						break;
 					}
-					if(result == RFID_PARITY_ERR){
+					if(result == RFID_MISMATCH){
 						view_error();
 						break;
 					}
@@ -733,7 +744,7 @@ int main (void)
 				while(1){
 					uint8_t result = KT_NO_KEY;
 					
-					if(button == BUTTON_ON){
+					if(button != BUTTON_OFF){
 						button = BUTTON_OFF;
 						mode = MODE_READ;
 						break;
@@ -778,7 +789,13 @@ int main (void)
 			}
 				
 			if(key == KEY_METAKOM){		//****************************************************************** WRITE METAKOM
-				while(1){					
+				lcd_clear();
+				view_key_type();
+				view_key_code();
+				
+				while(1){
+					//uint8_t result = DS_READ_ROM_NO_PRES;
+					
 					if(button == BUTTON_ON){
 						button = BUTTON_OFF;
 						key = KEY_MK_DAL_1;
@@ -792,6 +809,7 @@ int main (void)
 					}
 					if(button == BUTTON_HOLD){
 						mode = MODE_READ;
+						key = KEY_NO_KEY;
 						button = BUTTON_OFF;
 						break;
 					}
@@ -803,6 +821,10 @@ int main (void)
 			}
 			
 			if(key == KEY_MK_DAL_1 || key == KEY_MK_DAL_2){		//****************************************** WRITE METAKOM 2
+				lcd_clear();
+				view_key_type();
+				view_key_code();
+				
 				while(1){
 					if(button == BUTTON_ON){
 						button = BUTTON_OFF;
@@ -926,8 +948,8 @@ int main (void)
 			fat_close_file(fd);
 
 			lcd_goto_xy(11,1);
-			temp = test_bat()*162;
-			if(temp == 0){
+			temp = test_bat();
+			if(temp < 600){
 				lcd_pstr("USB");
 			}else{
 				lcd_chr(temp % 10000 / 1000 + '0');
@@ -952,7 +974,7 @@ int main (void)
 					break;
 				}
 				
-				if(kt_read_rom(in_data) == KT_READ_ROM_OK){
+				if(kt_read_rom(in_data) != KT_NO_KEY){
 					key = KEY_KT01;
 					set_mode_write();
 					break;
@@ -971,18 +993,22 @@ int main (void)
 				}
 				
 				if(resist_read(in_data) == RES_READ_OK){
-					key = KEY_RESIST;
-					lcd_clear();
-					view_key_type();
-					lcd_goto_xy(4,3);
-					lcd_str((char*)in_data);
-					uart_puts((char*)in_data);
-					lcd_pstr(" Ом");
-					uart_puts_pstr(" Ohm\r\n");
 					sound_play(sound_read);
-					while(button == BUTTON_OFF);
+					while(button == BUTTON_OFF){
+						key = KEY_RESIST;
+						lcd_clear();
+						view_key_type();
+						lcd_goto_xy(4,3);
+						lcd_str((char*)in_data);
+						uart_puts((char*)in_data);
+						lcd_pstr(" Ом");
+						uart_puts_pstr(" Ohm\r\n");
+						_delay_ms(200);
+						if(resist_read(in_data) != RES_READ_OK) break;
+					}
 					break;
 				}
+				
 				if(button == BUTTON_ON){
 					button = BUTTON_OFF;
 					break;
@@ -1002,25 +1028,26 @@ int main (void)
 			srand(ADC+TCNT2);
 			uint16_t time = 0;
 			ds_time = 0;
-			uint8_t new_mode = MODE_READ;
+			uint8_t new_mode = MODE_LIST;
 			view_menu(new_mode);
 			while(1){
 				time++;
 				_delay_ms(10);
 				if(time > 500){
-					mode = new_mode;
-					sound_play(sound_exist);
+					button = BUTTON_OFF;
+					mode = MODE_READ;
 					break;
 				}
 				if(button == BUTTON_ON){
 					button = BUTTON_OFF;
 					new_mode++;
-					if(new_mode > MODE_RAND_PROXY) new_mode = MODE_READ;
+					if(new_mode > MODE_CLEAR) new_mode = MODE_LIST;
 					view_menu(new_mode);
 					time = 0;
 				}
 				if(button == BUTTON_HOLD){
-					mode = MODE_READ;
+					button = BUTTON_OFF;
+					mode = new_mode;
 					break;
 				}
 				if(user_rx == USER_CMD){

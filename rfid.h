@@ -6,17 +6,19 @@
  */
 #pragma once
 
-#define RFID_PORT PORTC
-#define RFID_DDR  DDRC
-#define RFID_PIN  PINC
+#define RFID_PORT PORTD
+#define RFID_DDR  DDRD
+#define RFID_PIN  PIND
 #define RFID_IN   2
-#define RFID_OUT  3
+#define RFID_OUT  6
 
-enum enum_rfid{RFID_OK, RFID_NO_KEY, RFID_PARITY_ERR};
+enum enum_rfid{RFID_OK, RFID_NO_KEY, RFID_PARITY_ERR, RFID_MISMATCH};
 
-#define RFID_BUFFER_SIZE 40				//40*8=500 samples
+#define RFID_BUFFER_SIZE 25				//должен быть 9-31 байт
 
 void rfid_init(void);
 uint8_t rfid_read(uint8_t* data);
 uint8_t rfid_force_read(uint8_t* data);
-uint8_t rfid_program(uint8_t* data);
+uint8_t rfid_check(uint8_t* data);
+uint8_t rfid_em4305_write(uint8_t* data);
+uint8_t rfid_t5557_write(uint8_t* data);
