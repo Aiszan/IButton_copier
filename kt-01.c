@@ -105,7 +105,7 @@ uint8_t kt_reset(void)
 	kt_out(0);
 	_delay_ms(1);
 	kt_out(1);
-	_delay_us(80);
+	_delay_us(20);
 	if(kt_in() == 0) return 1;
 	for(uint8_t i=0;;i++){
 		if(kt_in() == 0) break;
