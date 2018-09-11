@@ -54,12 +54,12 @@ void ds_write_bit(uint8_t value)
 	if (value)
 	{
 		ds_out(0);
-		_delay_us(1);
+		_delay_us(5);
 		ds_out(1);
-		_delay_us(64);
+		_delay_us(95);
 		}else{
 		ds_out(0);
-		_delay_us(60);
+		_delay_us(90);
 		ds_out(1);
 		_delay_us(10);
 	}
@@ -70,11 +70,11 @@ uint8_t ds_read_bit()
 	uint8_t result;
 
 	ds_out(0);
-	_delay_us(1);
+	_delay_us(5);
 	ds_out(1);
-	_delay_us(9);
+	_delay_us(5);
 	result = ds_in();
-	_delay_us(55);
+	_delay_us(90);
 
 	return result;
 }
